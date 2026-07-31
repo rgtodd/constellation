@@ -79,13 +79,14 @@ public static class ConstellationRenderer
 
         canvas.Clear(SKColor.Parse("#AAAAAA"));
 
-        using var path = new SKPath();
-        path.MoveTo(screenPoints[0]);
+        var pathBuilder = new SKPathBuilder();
+        pathBuilder.MoveTo(screenPoints[0]);
         for (int i = 1; i < screenPoints.Length; i++)
         {
-            path.LineTo(screenPoints[i]);
+            pathBuilder.LineTo(screenPoints[i]);
         }
-        path.Close();
+        pathBuilder.Close();
+        using var path = pathBuilder.Snapshot();
 
         using var fillPaint = new SKPaint
         {
