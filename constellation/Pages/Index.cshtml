@@ -17,6 +17,9 @@
                 <input asp-for="Longitude" class="form-control" step="0.0001" min="-180" max="180" />
             </div>
             <div class="mb-3">
+                <button type="button" class="btn btn-outline-secondary btn-sm" id="useMyLocation">Use My Location</button>
+            </div>
+            <div class="mb-3">
                 <label asp-for="DateTime" class="form-label">Date and Time (local)</label>
                 <input asp-for="DateTime" class="form-control" type="datetime-local" step="1" />
             </div>
@@ -40,3 +43,30 @@
         </div>
     </div>
 </form>
+
+@section Scripts {
+    <script>
+        document.getElementById('useMyLocation').addEventListener('click', function () {
+            if (!navigator.geolocation) {
+                alert('Geolocation is not supported by your browser.');
+                return;
+            }
+            var btn = this;
+            btn.disabled = true;
+            btn.textContent = 'Locating…';
+            navigator.geolocation.getCurrentPosition(
+                function (pos) {
+                    document.getElementById('Latitude').value = pos.coords.latitude.toFixed(4);
+                    document.getElementById('Longitude').value = pos.coords.longitude.toFixed(4);
+                    btn.disabled = false;
+                    btn.textContent = 'Use My Location';
+                },
+                function () {
+                    alert('Unable to retrieve your location.');
+                    btn.disabled = false;
+                    btn.textContent = 'Use My Location';
+                }
+            );
+        });
+    </script>
+}
