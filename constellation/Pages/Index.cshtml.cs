@@ -67,7 +67,7 @@ namespace WebApplication8.Pages
 
         [BindProperty]
         [DataType(DataType.DateTime)]
-        public DateTime DateTime { get; set; } = DateTime.Now;
+        public DateTime DateTime { get; set; } = new DateTime(DateTime.Now.Ticks / TimeSpan.TicksPerSecond * TimeSpan.TicksPerSecond);
 
         [BindProperty]
         public string Constellation { get; set; } = "and";
