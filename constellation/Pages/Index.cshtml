@@ -1,10 +1,238 @@
-﻿@page
+@page
 @model IndexModel
 @{
-    ViewData["Title"] = "Home page";
+    ViewData["Title"] = "Constellation Boundaries";
 }
 
-<div class="text-center">
-    <h1 class="display-4">Welcome</h1>
-    <p>Learn about <a href="https://learn.microsoft.com/aspnet/core">building Web apps with ASP.NET Core</a>.</p>
+<div class="row">
+    <div class="col-md-4">
+        <h4>Viewer Settings</h4>
+        <div class="mb-3">
+            <label for="latitude" class="form-label">Latitude</label>
+            <input type="number" class="form-control" id="latitude" value="40.7128" step="0.0001" min="-90" max="90" />
+        </div>
+        <div class="mb-3">
+            <label for="longitude" class="form-label">Longitude</label>
+            <input type="number" class="form-control" id="longitude" value="-74.0060" step="0.0001" min="-180" max="180" />
+        </div>
+        <div class="mb-3">
+            <label for="datetime" class="form-label">Date and Time (local)</label>
+            <input type="datetime-local" class="form-control" id="datetime" />
+        </div>
+        <div class="mb-3">
+            <label for="constellation" class="form-label">Constellation</label>
+            <select class="form-select" id="constellation">
+                @foreach (var item in Model.Constellations)
+                {
+                    <option value="@item.Value">@item.Text</option>
+                }
+            </select>
+        </div>
+        <button class="btn btn-primary" id="renderBtn">Render</button>
+    </div>
+    <div class="col-md-8">
+        <canvas id="constellationCanvas" width="600" height="600" style="border: 1px solid #ccc;"></canvas>
+    </div>
 </div>
+
+@section Scripts {
+    <script>
+        (function () {
+            const DEG = Math.PI / 180;
+            const RAD = 180 / Math.PI;
+            const CANVAS_SIZE = 600;
+            const BOUNDARY_SIZE = 550;
+            const OFFSET = (CANVAS_SIZE - BOUNDARY_SIZE) / 2;
+
+            function setDefaultDateTime() {
+                const now = new Date();
+                const pad = (n, w) => String(n).padStart(w || 2, '0');
+                const local = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
+                    + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes());
+                document.getElementById('datetime').value = local;
+            }
+
+            function parseRa(text) {
+                const parts = text.trim().split(/\s+/);
+                const h = parseFloat(parts[0]);
+                const m = parseFloat(parts[1]);
+                const s = parseFloat(parts[2]);
+                return (h + m / 60 + s / 3600) * 15 * DEG;
+            }
+
+            function parseDec(text) {
+                return parseFloat(text.trim()) * DEG;
+            }
+
+            function parseBoundaryData(text) {
+                const points = [];
+                const lines = text.trim().split('\n');
+                for (const line of lines) {
+                    const parts = line.split('|');
+                    if (parts.length < 2) continue;
+                    const ra = parseRa(parts[0]);
+                    const dec = parseDec(parts[1]);
+                    points.push({ ra, dec });
+                }
+                return points;
+            }
+
+            function julianDate(date) {
+                const y = date.getUTCFullYear();
+                const m = date.getUTCMonth() + 1;
+                const d = date.getUTCDate();
+                const h = date.getUTCHours() + date.getUTCMinutes() / 60 + date.getUTCSeconds() / 3600;
+
+                let jy = y;
+                let jm = m;
+                if (m <= 2) {
+                    jy -= 1;
+                    jm += 12;
+                }
+
+                const A = Math.floor(jy / 100);
+                const B = 2 - A + Math.floor(A / 4);
+                return Math.floor(365.25 * (jy + 4716)) + Math.floor(30.6001 * (jm + 1)) + d + h / 24 + B - 1524.5;
+            }
+
+            function gmst(jd) {
+                const T = (jd - 2451545.0) / 36525.0;
+                let gmst = 280.46061837 + 360.98564736629 * (jd - 2451545.0) + 0.000387933 * T * T - T * T * T / 38710000.0;
+                gmst = ((gmst % 360) + 360) % 360;
+                return gmst * DEG;
+            }
+
+            function raDecToAltAz(ra, dec, lat, lst) {
+                const ha = lst - ra;
+                const sinAlt = Math.sin(dec) * Math.sin(lat) + Math.cos(dec) * Math.cos(lat) * Math.cos(ha);
+                const alt = Math.asin(Math.max(-1, Math.min(1, sinAlt)));
+
+                const cosA = (Math.sin(dec) - Math.sin(alt) * Math.sin(lat)) / (Math.cos(alt) * Math.cos(lat));
+                let az = Math.acos(Math.max(-1, Math.min(1, cosA)));
+                if (Math.sin(ha) > 0) {
+                    az = 2 * Math.PI - az;
+                }
+                return { alt, az };
+            }
+
+            function stereographicProject(alt, az) {
+                const r = Math.cos(alt) / (1 + Math.sin(alt));
+                const x = r * Math.sin(az);
+                const y = -r * Math.cos(az);
+                return { x, y };
+            }
+
+            function computeCenter(points, lat, lst) {
+                let sumRa = 0, sumDec = 0;
+
+                let refRa = points[0].ra;
+                for (const p of points) {
+                    let dra = p.ra - refRa;
+                    if (dra > Math.PI) dra -= 2 * Math.PI;
+                    if (dra < -Math.PI) dra += 2 * Math.PI;
+                    sumRa += refRa + dra;
+                    sumDec += p.dec;
+                }
+                const centerRa = sumRa / points.length;
+                const centerDec = sumDec / points.length;
+
+                return raDecToAltAz(centerRa, centerDec, lat, lst);
+            }
+
+            function render(boundaryPoints, lat, lon, dateTime) {
+                const canvas = document.getElementById('constellationCanvas');
+                const ctx = canvas.getContext('2d');
+
+                const jd = julianDate(dateTime);
+                const gmstAngle = gmst(jd);
+                const lst = gmstAngle + lon;
+
+                const latRad = lat * DEG;
+
+                const center = computeCenter(boundaryPoints, latRad, lst);
+
+                const projectedPoints = boundaryPoints.map(p => {
+                    const { alt, az } = raDecToAltAz(p.ra, p.dec, latRad, lst);
+                    const proj = stereographicProject(alt, az);
+                    return {
+                        x: proj.x - stereographicProject(center.alt, center.az).x,
+                        y: proj.y - stereographicProject(center.alt, center.az).y
+                    };
+                });
+
+                const centerProj = stereographicProject(center.alt, center.az);
+                const centeredPoints = boundaryPoints.map(p => {
+                    const { alt, az } = raDecToAltAz(p.ra, p.dec, latRad, lst);
+                    const proj = stereographicProject(alt, az);
+                    return {
+                        x: proj.x - centerProj.x,
+                        y: proj.y - centerProj.y
+                    };
+                });
+
+                let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+                for (const p of centeredPoints) {
+                    if (p.x < minX) minX = p.x;
+                    if (p.x > maxX) maxX = p.x;
+                    if (p.y < minY) minY = p.y;
+                    if (p.y > maxY) maxY = p.y;
+                }
+
+                const rangeX = maxX - minX;
+                const rangeY = maxY - minY;
+                const range = Math.max(rangeX, rangeY);
+                const scale = range > 0 ? BOUNDARY_SIZE / range : 1;
+
+                const midX = (minX + maxX) / 2;
+                const midY = (minY + maxY) / 2;
+
+                const screenPoints = centeredPoints.map(p => ({
+                    x: CANVAS_SIZE / 2 + (p.x - midX) * scale,
+                    y: CANVAS_SIZE / 2 + (p.y - midY) * scale
+                }));
+
+                ctx.fillStyle = '#aaaaaa';
+                ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+                ctx.beginPath();
+                ctx.moveTo(screenPoints[0].x, screenPoints[0].y);
+                for (let i = 1; i < screenPoints.length; i++) {
+                    ctx.lineTo(screenPoints[i].x, screenPoints[i].y);
+                }
+                ctx.closePath();
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+
+                ctx.strokeStyle = '#333333';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+
+            document.getElementById('renderBtn').addEventListener('click', async function () {
+                const lat = parseFloat(document.getElementById('latitude').value);
+                const lon = parseFloat(document.getElementById('longitude').value);
+                const dtStr = document.getElementById('datetime').value;
+                const constellation = document.getElementById('constellation').value;
+
+                if (isNaN(lat) || isNaN(lon) || !dtStr || !constellation) {
+                    alert('Please fill in all fields.');
+                    return;
+                }
+
+                const dateTime = new Date(dtStr);
+
+                try {
+                    const response = await fetch(`/boundaries/${constellation}.txt`);
+                    if (!response.ok) throw new Error('Failed to load boundary data');
+                    const text = await response.text();
+                    const points = parseBoundaryData(text);
+                    render(points, lat, lon, dateTime);
+                } catch (err) {
+                    alert('Error loading constellation data: ' + err.message);
+                }
+            });
+
+            setDefaultDateTime();
+        })();
+    </script>
+}
