@@ -57,10 +57,11 @@ public static class ConstellationRenderer
     /// 1. Compute the Julian Date from <paramref name="dateTimeUtc"/>, then derive Greenwich Mean Sidereal Time (GMST).
     /// 2. Compute Local Sidereal Time (LST) = GMST + longitude (in radians).
     /// 3. Find the centroid of the boundary in (RA, Dec) space (wrapping RA around 2*pi), convert it to (Alt, Az).
-    /// 4. Convert each boundary point from (RA, Dec) to horizontal coordinates (Alt, Az) using the observer's
-    ///    latitude and LST, then apply a gnomonic projection onto the tangent plane at the centroid direction.
-    ///    The plane's axes are oriented so that +X is to the observer's right and +Y is downward (toward the
-    ///    horizon), matching screen coordinates. The centroid projects to the origin.
+    /// 4. For each boundary edge, interpolate intermediate points in (RA, Dec) space at approximately 1-degree
+    ///    steps, convert each to (Alt, Az), and apply a gnomonic projection onto the tangent plane at the
+    ///    centroid direction. This traces the true RA/Dec path rather than connecting vertices with straight
+    ///    lines. The plane's axes are oriented so that +X is to the observer's right and +Y is downward
+    ///    (toward the horizon), matching screen coordinates. The centroid projects to the origin.
     /// 5. Compute the bounding box of the projected points, determine a uniform scale factor
     ///    so the largest axis fits within <paramref name="boundarySize"/> pixels, then map to screen coordinates
     ///    centered on the canvas.
@@ -81,16 +82,36 @@ public static class ConstellationRenderer
 
         var center = ComputeCenter(boundaryPoints, latRad, lst);
 
-        var centeredPoints = new (double X, double Y)[boundaryPoints.Count];
+        var projectedPoints = new List<(double X, double Y)>();
         for (int i = 0; i < boundaryPoints.Count; i++)
         {
-            var (alt, az) = RaDecToAltAz(boundaryPoints[i].RaRadians, boundaryPoints[i].DecRadians, latRad, lst);
-            centeredPoints[i] = GnomonicProject(alt, az, center.Alt, center.Az);
+            var next = (i + 1) % boundaryPoints.Count;
+            var ra0 = boundaryPoints[i].RaRadians;
+            var dec0 = boundaryPoints[i].DecRadians;
+            var ra1 = boundaryPoints[next].RaRadians;
+            var dec1 = boundaryPoints[next].DecRadians;
+
+            var dra = ra1 - ra0;
+            if (dra > Math.PI) dra -= 2.0 * Math.PI;
+            if (dra < -Math.PI) dra += 2.0 * Math.PI;
+            var ddec = dec1 - dec0;
+
+            var angularSpan = Math.Sqrt(dra * dra + ddec * ddec);
+            var steps = Math.Max(1, (int)Math.Ceiling(angularSpan / DEGREES_TO_RADIANS));
+
+            for (int s = 0; s < steps; s++)
+            {
+                var t = (double)s / steps;
+                var ra = ra0 + t * dra;
+                var dec = dec0 + t * ddec;
+                var (alt, az) = RaDecToAltAz(ra, dec, latRad, lst);
+                projectedPoints.Add(GnomonicProject(alt, az, center.Alt, center.Az));
+            }
         }
 
         double minX = double.MaxValue, maxX = double.MinValue;
         double minY = double.MaxValue, maxY = double.MinValue;
-        foreach (var p in centeredPoints)
+        foreach (var p in projectedPoints)
         {
             if (p.X < minX) minX = p.X;
             if (p.X > maxX) maxX = p.X;
@@ -106,12 +127,12 @@ public static class ConstellationRenderer
         var midX = (minX + maxX) / 2.0;
         var midY = (minY + maxY) / 2.0;
 
-        var screenPoints = new SKPoint[centeredPoints.Length];
-        for (int i = 0; i < centeredPoints.Length; i++)
+        var screenPoints = new SKPoint[projectedPoints.Count];
+        for (int i = 0; i < projectedPoints.Count; i++)
         {
             screenPoints[i] = new SKPoint(
-                (float)(canvasSize / 2.0 + (centeredPoints[i].X - midX) * scale),
-                (float)(canvasSize / 2.0 + (centeredPoints[i].Y - midY) * scale));
+                (float)(canvasSize / 2.0 + (projectedPoints[i].X - midX) * scale),
+                (float)(canvasSize / 2.0 + (projectedPoints[i].Y - midY) * scale));
         }
 
         using var bitmap = new SKBitmap(canvasSize, canvasSize);
