@@ -56,12 +56,12 @@ public static class ConstellationRenderer
     /// The rendering pipeline is:
     /// 1. Compute the Julian Date from <paramref name="dateTimeUtc"/>, then derive Greenwich Mean Sidereal Time (GMST).
     /// 2. Compute Local Sidereal Time (LST) = GMST + longitude (in radians).
-    /// 3. Find the centroid of the boundary in (RA, Dec) space (wrapping RA around 2*pi), convert it to (Alt, Az),
-    ///    and stereographically project it to obtain a center offset.
+    /// 3. Find the centroid of the boundary in (RA, Dec) space (wrapping RA around 2*pi), convert it to (Alt, Az).
     /// 4. Convert each boundary point from (RA, Dec) to horizontal coordinates (Alt, Az) using the observer's
-    ///    latitude and LST, then apply a zenithal stereographic projection: r = cos(alt)/(1+sin(alt)),
-    ///    x = r*sin(az), y = -r*cos(az). Subtract the center projection to keep the polygon centered.
-    /// 5. Compute the bounding box of the centered projected points, determine a uniform scale factor
+    ///    latitude and LST, then apply a gnomonic projection onto the tangent plane at the centroid direction.
+    ///    The plane's axes are oriented so that +X is to the observer's right and +Y is downward (toward the
+    ///    horizon), matching screen coordinates. The centroid projects to the origin.
+    /// 5. Compute the bounding box of the projected points, determine a uniform scale factor
     ///    so the largest axis fits within <paramref name="boundarySize"/> pixels, then map to screen coordinates
     ///    centered on the canvas.
     /// 6. Draw the polygon as a filled white region with a dark stroke onto a gray background, encode as PNG.
@@ -80,14 +80,12 @@ public static class ConstellationRenderer
         var latRad = latitudeDegrees * DEGREES_TO_RADIANS;
 
         var center = ComputeCenter(boundaryPoints, latRad, lst);
-        var centerProj = StereographicProject(center.Alt, center.Az);
 
         var centeredPoints = new (double X, double Y)[boundaryPoints.Count];
         for (int i = 0; i < boundaryPoints.Count; i++)
         {
             var (alt, az) = RaDecToAltAz(boundaryPoints[i].RaRadians, boundaryPoints[i].DecRadians, latRad, lst);
-            var proj = StereographicProject(alt, az);
-            centeredPoints[i] = (proj.X - centerProj.X, proj.Y - centerProj.Y);
+            centeredPoints[i] = GnomonicProject(alt, az, center.Alt, center.Az);
         }
 
         double minX = double.MaxValue, maxX = double.MinValue;
@@ -286,34 +284,64 @@ public static class ConstellationRenderer
     }
 
     /// <summary>
-    /// Projects horizontal coordinates (altitude, azimuth) onto a 2D plane using a zenithal (polar)
-    /// stereographic projection centered on the zenith.
+    /// Projects horizontal coordinates (altitude, azimuth) onto a 2D plane tangent to the celestial sphere
+    /// at a given center direction, using a gnomonic (central) projection with observer-oriented axes.
     /// </summary>
-    /// <param name="alt">Altitude in radians (-pi/2 to +pi/2). The zenith (alt = pi/2) projects to the origin.</param>
-    /// <param name="az">Azimuth in radians (0 to 2*pi), measured from north through east.</param>
+    /// <param name="alt">Altitude of the point to project, in radians.</param>
+    /// <param name="az">Azimuth of the point to project, in radians (north = 0, east = pi/2).</param>
+    /// <param name="alt0">Altitude of the projection center, in radians.</param>
+    /// <param name="az0">Azimuth of the projection center, in radians.</param>
     /// <returns>
-    /// A tuple (X, Y) in projection-plane coordinates (dimensionless, range approximately -1 to 1 for
-    /// objects above the horizon). The zenith maps to (0, 0); the horizon maps to a unit circle.
-    /// +X points east, +Y points south (north is -Y).
+    /// A tuple (X, Y) in projection-plane coordinates. The center direction projects to (0, 0).
+    /// +X points to the observer's right; +Y points downward (toward the horizon relative to the center).
     /// </returns>
     /// <remarks>
-    /// The stereographic projection from the nadir (opposite the zenith) maps the celestial hemisphere onto
-    /// a plane tangent to the zenith:
-    /// 1. Radial distance: r = cos(alt) / (1 + sin(alt)).
-    ///    At the zenith (alt = pi/2), r = 0. At the horizon (alt = 0), r = 1.
-    ///    This is derived from the standard stereographic formula r = tan((pi/2 - alt)/2),
-    ///    rewritten using the half-angle identity.
-    /// 2. Cartesian coordinates: x = r * sin(az), y = -r * cos(az).
-    ///    The negative sign on y orients the projection so that north is upward (negative Y direction
-    ///    in screen-like coordinates where Y increases downward).
-    /// This projection preserves angles (conformal) and maps circles on the sphere to circles on the plane.
+    /// The projection works in 3D using an East/North/Zenith coordinate frame:
+    /// 1. Convert (alt, az) and (alt0, az0) to unit vectors p and c.
+    /// 2. Gnomonic projection: d = p / (p . c) - c, giving the displacement on the tangent plane at c.
+    /// 3. The plane's "up" basis vector is the zenith direction projected onto the tangent plane and normalized.
+    ///    When the center is at the zenith, north is used as the fallback "up" direction.
+    /// 4. The "right" basis vector is cross(c, up), pointing to the observer's right.
+    /// 5. X = d . right, Y = -(d . up), so +Y is downward (matching screen coordinates).
     /// </remarks>
-    private static (double X, double Y) StereographicProject(double alt, double az)
+    private static (double X, double Y) GnomonicProject(double alt, double az, double alt0, double az0)
     {
-        var r = Math.Cos(alt) / (1.0 + Math.Sin(alt));
-        var x = r * Math.Sin(az);
-        var y = -r * Math.Cos(az);
-        return (-x, y);
+        var px = Math.Cos(alt) * Math.Sin(az);
+        var py = Math.Cos(alt) * Math.Cos(az);
+        var pz = Math.Sin(alt);
+
+        var cx = Math.Cos(alt0) * Math.Sin(az0);
+        var cy = Math.Cos(alt0) * Math.Cos(az0);
+        var cz = Math.Sin(alt0);
+
+        var dot = px * cx + py * cy + pz * cz;
+        if (dot <= 0.0)
+            dot = 1e-6;
+
+        var dx = px / dot - cx;
+        var dy = py / dot - cy;
+        var dz = pz / dot - cz;
+
+        double ux, uy, uz;
+        if (Math.Abs(Math.Cos(alt0)) < 1e-10)
+        {
+            ux = 0.0; uy = 1.0; uz = 0.0;
+        }
+        else
+        {
+            ux = -Math.Sin(alt0) * Math.Sin(az0);
+            uy = -Math.Sin(alt0) * Math.Cos(az0);
+            uz = Math.Cos(alt0);
+        }
+
+        var rx = cy * uz - cz * uy;
+        var ry = cz * ux - cx * uz;
+        var rz = cx * uy - cy * ux;
+
+        var projX = dx * rx + dy * ry + dz * rz;
+        var projY = -(dx * ux + dy * uy + dz * uz);
+
+        return (projX, projY);
     }
 
     /// <summary>
