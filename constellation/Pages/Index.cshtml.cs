@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
@@ -49,9 +50,63 @@ namespace WebApplication8.Pages
             ["vul"] = "Vulpecula"
         };
 
+        private readonly IWebHostEnvironment _environment;
+
+        public IndexModel(IWebHostEnvironment environment)
+        {
+            _environment = environment;
+        }
+
         public List<SelectListItem> Constellations { get; set; } = [];
 
+        [BindProperty]
+        public double Latitude { get; set; } = 40.7128;
+
+        [BindProperty]
+        public double Longitude { get; set; } = -74.0060;
+
+        [BindProperty]
+        [DataType(DataType.DateTime)]
+        public DateTime DateTime { get; set; } = DateTime.Now;
+
+        [BindProperty]
+        public string Constellation { get; set; } = "and";
+
+        public string? RenderedImageDataUrl { get; set; }
+
         public void OnGet()
+        {
+            PopulateConstellations();
+        }
+
+        public IActionResult OnPost()
+        {
+            PopulateConstellations();
+
+            if (!ConstellationNames.ContainsKey(Constellation))
+            {
+                ModelState.AddModelError(nameof(Constellation), "Invalid constellation.");
+                return Page();
+            }
+
+            var boundaryPath = Path.Combine(_environment.WebRootPath, "boundaries", $"{Constellation}.txt");
+            if (!System.IO.File.Exists(boundaryPath))
+            {
+                ModelState.AddModelError(nameof(Constellation), "Boundary data not found.");
+                return Page();
+            }
+
+            var text = System.IO.File.ReadAllText(boundaryPath);
+            var points = ConstellationRenderer.ParseBoundaryData(text);
+
+            var dateTimeUtc = DateTime.ToUniversalTime();
+            var pngBytes = ConstellationRenderer.Render(points, Latitude, Longitude, dateTimeUtc);
+
+            RenderedImageDataUrl = $"data:image/png;base64,{Convert.ToBase64String(pngBytes)}";
+            return Page();
+        }
+
+        private void PopulateConstellations()
         {
             Constellations = ConstellationNames
                 .OrderBy(kvp => kvp.Value)
