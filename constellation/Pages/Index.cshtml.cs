@@ -83,27 +83,52 @@ namespace WebApplication8.Pages
         {
             PopulateConstellations();
 
+            var pngBytes = RenderConstellationImage();
+            if (pngBytes is null)
+                return Page();
+
+            RenderedImageDataUrl = $"data:image/png;base64,{Convert.ToBase64String(pngBytes)}";
+            return Page();
+        }
+
+        public IActionResult OnPostDownloadSketch()
+        {
+            PopulateConstellations();
+
+            var pngBytes = RenderConstellationImage();
+            if (pngBytes is null)
+                return Page();
+
+            var headerPath = Path.Combine(_environment.ContentRootPath, "sketch_header.md");
+            var headerMarkdown = System.IO.File.ReadAllText(headerPath);
+            var constellationName = ConstellationNames[Constellation];
+
+            var pdfBytes = SketchRenderer.Render(headerMarkdown, constellationName, pngBytes);
+            var fileName = $"SKETCH_{Constellation.ToUpper()}.pdf";
+
+            return File(pdfBytes, "application/pdf", fileName);
+        }
+
+        private byte[]? RenderConstellationImage()
+        {
             if (!ConstellationNames.ContainsKey(Constellation))
             {
                 ModelState.AddModelError(nameof(Constellation), "Invalid constellation.");
-                return Page();
+                return null;
             }
 
             var boundaryPath = Path.Combine(_environment.WebRootPath, "boundaries", $"{Constellation}.txt");
             if (!System.IO.File.Exists(boundaryPath))
             {
                 ModelState.AddModelError(nameof(Constellation), "Boundary data not found.");
-                return Page();
+                return null;
             }
 
             var text = System.IO.File.ReadAllText(boundaryPath);
             var points = ConstellationRenderer.ParseBoundaryData(text);
 
             var dateTimeUtc = DateTime.ToUniversalTime();
-            var pngBytes = ConstellationRenderer.Render(points, Latitude, Longitude, dateTimeUtc);
-
-            RenderedImageDataUrl = $"data:image/png;base64,{Convert.ToBase64String(pngBytes)}";
-            return Page();
+            return ConstellationRenderer.Render(points, Latitude, Longitude, dateTimeUtc);
         }
 
         private void PopulateConstellations()
