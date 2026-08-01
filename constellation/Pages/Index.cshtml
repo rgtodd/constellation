@@ -33,6 +33,9 @@
             @if (Model.RenderedImageDataUrl is not null)
             {
                 <img src="@Model.RenderedImageDataUrl" width="600" height="600" alt="Constellation boundary" style="border: 1px solid #ccc;" />
+                <div class="mt-2">
+                    <a href="@Model.RenderedImageDataUrl" download="@(Model.Constellation.ToUpper())_SKETCH.png" class="btn btn-outline-primary btn-sm">Download Image</a>
+                </div>
             }
             else
             {
