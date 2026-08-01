@@ -1,4 +1,4 @@
-namespace WebApplication8
+namespace ConstellationSketch
 {
     public class Program
     {

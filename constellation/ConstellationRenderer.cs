@@ -1,6 +1,6 @@
 using SkiaSharp;
 
-namespace WebApplication8;
+namespace ConstellationSketch;
 
 public record BoundaryPoint(double RaRadians, double DecRadians);
 

@@ -3,7 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.AspNetCore.Mvc.Rendering;
 
-namespace WebApplication8.Pages
+namespace ConstellationSketch.Pages
 {
     public class IndexModel : PageModel
     {

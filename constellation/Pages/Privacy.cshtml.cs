@@ -1,7 +1,7 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 
-namespace WebApplication8.Pages
+namespace ConstellationSketch.Pages
 {
     public class PrivacyModel : PageModel
     {
