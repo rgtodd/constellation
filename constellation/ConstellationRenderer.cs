@@ -73,7 +73,8 @@ public static class ConstellationRenderer
         double longitudeDegrees,
         DateTime dateTimeUtc,
         int canvasSize = 600,
-        int boundarySize = 550)
+        int boundarySize = 550,
+        int gridDivisions = 4)
     {
         var jd = JulianDate(dateTimeUtc);
         var gmstAngle = Gmst(jd);
@@ -165,6 +166,33 @@ public static class ConstellationRenderer
             IsAntialias = true
         };
         canvas.DrawPath(path, strokePaint);
+
+        if (gridDivisions > 0)
+        {
+            using var gridPaint = new SKPaint
+            {
+                Color = SKColor.Parse("#888888"),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 1,
+                IsAntialias = true,
+                PathEffect = SKPathEffect.CreateDash([6f, 4f], 0)
+            };
+
+            var gridLeft = (float)(canvasSize / 2.0 - rangeX / 2.0 * scale);
+            var gridRight = (float)(canvasSize / 2.0 + rangeX / 2.0 * scale);
+            var gridTop = (float)(canvasSize / 2.0 - rangeY / 2.0 * scale);
+            var gridBottom = (float)(canvasSize / 2.0 + rangeY / 2.0 * scale);
+
+            for (int i = 0; i <= gridDivisions; i++)
+            {
+                var t = (float)i / gridDivisions;
+                var x = gridLeft + t * (gridRight - gridLeft);
+                var y = gridTop + t * (gridBottom - gridTop);
+
+                canvas.DrawLine(x, gridTop, x, gridBottom, gridPaint);
+                canvas.DrawLine(gridLeft, y, gridRight, y, gridPaint);
+            }
+        }
 
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
