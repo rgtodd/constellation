@@ -178,10 +178,11 @@ public static class ConstellationRenderer
                 PathEffect = SKPathEffect.CreateDash([6f, 4f], 0)
             };
 
-            var gridLeft = (float)(canvasSize / 2.0 - rangeX / 2.0 * scale);
-            var gridRight = (float)(canvasSize / 2.0 + rangeX / 2.0 * scale);
-            var gridTop = (float)(canvasSize / 2.0 - rangeY / 2.0 * scale);
-            var gridBottom = (float)(canvasSize / 2.0 + rangeY / 2.0 * scale);
+            var margin = (canvasSize - boundarySize) / 2.0f;
+            var gridLeft = margin;
+            var gridRight = canvasSize - margin;
+            var gridTop = margin;
+            var gridBottom = canvasSize - margin;
 
             for (int i = 0; i <= gridDivisions; i++)
             {
