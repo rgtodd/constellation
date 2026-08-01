@@ -91,6 +91,19 @@ namespace WebApplication8.Pages
             return Page();
         }
 
+        public IActionResult OnPostDownloadImage()
+        {
+            PopulateConstellations();
+
+            var pngBytes = RenderConstellationImage();
+            if (pngBytes is null)
+                return Page();
+
+            var fileName = $"{Constellation.ToUpper()}_SKETCH.png";
+
+            return File(pngBytes, "image/png", fileName);
+        }
+
         public IActionResult OnPostDownloadSketch()
         {
             PopulateConstellations();
@@ -104,7 +117,7 @@ namespace WebApplication8.Pages
             var constellationName = ConstellationNames[Constellation];
 
             var pdfBytes = SketchRenderer.Render(headerMarkdown, constellationName, pngBytes);
-            var fileName = $"SKETCH_{Constellation.ToUpper()}.pdf";
+            var fileName = $"{Constellation.ToUpper()}_SKETCH.pdf";
 
             return File(pdfBytes, "application/pdf", fileName);
         }
