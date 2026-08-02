@@ -4,6 +4,8 @@ namespace ConstellationSketch;
 
 public record BoundaryPoint(double RaRadians, double DecRadians);
 
+public record RenderResult(byte[] PngBytes, double CenterAltDegrees, double CenterAzDegrees);
+
 public static class ConstellationRenderer
 {
     private const double DEGREES_TO_RADIANS = Math.PI / 180.0;
@@ -67,14 +69,14 @@ public static class ConstellationRenderer
     ///    centered on the canvas.
     /// 6. Draw the polygon as a filled white region with a dark stroke onto a gray background, encode as PNG.
     /// </remarks>
-    public static byte[] Render(
+    public static RenderResult Render(
         IReadOnlyList<BoundaryPoint> boundaryPoints,
         double latitudeDegrees,
         double longitudeDegrees,
         DateTime dateTimeUtc,
         int canvasSize = 600,
         int boundarySize = 550,
-        int gridDivisions = 4)
+        int gridDivisions = 8)
     {
         var jd = JulianDate(dateTimeUtc);
         var gmstAngle = Gmst(jd);
@@ -197,7 +199,9 @@ public static class ConstellationRenderer
 
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-        return data.ToArray();
+        var altDegrees = center.Alt / DEGREES_TO_RADIANS;
+        var azDegrees = center.Az / DEGREES_TO_RADIANS;
+        return new RenderResult(data.ToArray(), altDegrees, azDegrees);
     }
 
     /// <summary>

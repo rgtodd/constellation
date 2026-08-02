@@ -6,11 +6,13 @@ namespace ConstellationSketch;
 
 public static class SketchRenderer
 {
-    public static byte[] Render(string headerMarkdown, string constellationName, byte[] pngImageBytes)
+    public static byte[] Render(string headerMarkdown, string constellationName, double altDegrees, double azDegrees, byte[] pngImageBytes)
     {
         var headerText = headerMarkdown
             .Replace("```", "")
             .Replace("#CONSTELLATION_NAME#", constellationName)
+            .Replace("#ALT#", altDegrees.ToString("F0"))
+            .Replace("#AZ#", azDegrees.ToString("F0"))
             .Trim();
 
         QuestPDF.Settings.License = LicenseType.Community;

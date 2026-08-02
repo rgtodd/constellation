@@ -83,11 +83,11 @@ namespace ConstellationSketch.Pages
         {
             PopulateConstellations();
 
-            var pngBytes = RenderConstellationImage();
-            if (pngBytes is null)
+            var result = RenderConstellationImage();
+            if (result is null)
                 return Page();
 
-            RenderedImageDataUrl = $"data:image/png;base64,{Convert.ToBase64String(pngBytes)}";
+            RenderedImageDataUrl = $"data:image/png;base64,{Convert.ToBase64String(result.PngBytes)}";
             return Page();
         }
 
@@ -95,34 +95,34 @@ namespace ConstellationSketch.Pages
         {
             PopulateConstellations();
 
-            var pngBytes = RenderConstellationImage();
-            if (pngBytes is null)
+            var result = RenderConstellationImage();
+            if (result is null)
                 return Page();
 
             var fileName = $"{Constellation.ToUpper()}_SKETCH.png";
 
-            return File(pngBytes, "image/png", fileName);
+            return File(result.PngBytes, "image/png", fileName);
         }
 
         public IActionResult OnPostDownloadSketch()
         {
             PopulateConstellations();
 
-            var pngBytes = RenderConstellationImage();
-            if (pngBytes is null)
+            var result = RenderConstellationImage();
+            if (result is null)
                 return Page();
 
             var headerPath = Path.Combine(_environment.ContentRootPath, "sketch_header.md");
             var headerMarkdown = System.IO.File.ReadAllText(headerPath);
             var constellationName = ConstellationNames[Constellation];
 
-            var pdfBytes = SketchRenderer.Render(headerMarkdown, constellationName, pngBytes);
+            var pdfBytes = SketchRenderer.Render(headerMarkdown, constellationName, result.CenterAltDegrees, result.CenterAzDegrees, result.PngBytes);
             var fileName = $"{Constellation.ToUpper()}_SKETCH.pdf";
 
             return File(pdfBytes, "application/pdf", fileName);
         }
 
-        private byte[]? RenderConstellationImage()
+        private RenderResult? RenderConstellationImage()
         {
             if (!ConstellationNames.ContainsKey(Constellation))
             {
