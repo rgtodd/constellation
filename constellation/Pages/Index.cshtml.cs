@@ -73,6 +73,12 @@ namespace ConstellationSketch.Pages
         public DateTime DateTime { get; set; } = new DateTime(DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond * TimeSpan.TicksPerSecond);
 
         [BindProperty]
+        [Display(Name = "UTC Offset")]
+        public string UtcOffset { get; set; } = "+00:00";
+
+        public List<SelectListItem> UtcOffsets { get; set; } = [];
+
+        [BindProperty]
         public string Constellation { get; set; } = "and";
 
         public string? RenderedImageDataUrl { get; set; }
@@ -80,11 +86,13 @@ namespace ConstellationSketch.Pages
         public void OnGet()
         {
             PopulateConstellations();
+            PopulateUtcOffsets();
         }
 
         public IActionResult OnPost()
         {
             PopulateConstellations();
+            PopulateUtcOffsets();
 
             var result = RenderConstellationImage();
             if (result is null)
@@ -97,6 +105,7 @@ namespace ConstellationSketch.Pages
         public IActionResult OnPostDownloadImage()
         {
             PopulateConstellations();
+            PopulateUtcOffsets();
 
             var result = RenderConstellationImage();
             if (result is null)
@@ -110,6 +119,7 @@ namespace ConstellationSketch.Pages
         public IActionResult OnPostDownloadSketch()
         {
             PopulateConstellations();
+            PopulateUtcOffsets();
 
             var result = RenderConstellationImage();
             if (result is null)
@@ -143,8 +153,28 @@ namespace ConstellationSketch.Pages
             var text = System.IO.File.ReadAllText(boundaryPath);
             var points = ConstellationRenderer.ParseBoundaryData(text);
 
-            var dateTimeUtc = DateTime.ToUniversalTime();
+            var offset = TimeSpan.Parse(UtcOffset.Replace("+", ""));
+            var dateTimeUtc = new DateTimeOffset(DateTime, offset).UtcDateTime;
             return ConstellationRenderer.Render(points, Latitude, Longitude, dateTimeUtc, Elevation);
+        }
+
+        private void PopulateUtcOffsets()
+        {
+            var offsets = new[]
+            {
+                "-12:00", "-11:00", "-10:00", "-09:30", "-09:00",
+                "-08:00", "-07:00", "-06:00", "-05:00", "-04:00",
+                "-03:30", "-03:00", "-02:00", "-01:00", "+00:00",
+                "+01:00", "+02:00", "+03:00", "+03:30", "+04:00",
+                "+04:30", "+05:00", "+05:30", "+05:45", "+06:00",
+                "+06:30", "+07:00", "+08:00", "+08:45", "+09:00",
+                "+09:30", "+10:00", "+10:30", "+11:00", "+12:00",
+                "+12:45", "+13:00", "+14:00"
+            };
+
+            UtcOffsets = offsets
+                .Select(o => new SelectListItem($"UTC{o}", o))
+                .ToList();
         }
 
         private void PopulateConstellations()

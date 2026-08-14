@@ -25,7 +25,10 @@
             </div>
             <div class="mb-3">
                 <label asp-for="DateTime" class="form-label">Date and Time (local)</label>
-                <input asp-for="DateTime" class="form-control" type="datetime-local" step="1" />
+                <div class="input-group">
+                    <input asp-for="DateTime" class="form-control" type="datetime-local" step="1" />
+                    <select asp-for="UtcOffset" asp-items="Model.UtcOffsets" class="form-select" style="max-width: 150px;"></select>
+                </div>
             </div>
             <div class="mb-3">
                 <label asp-for="Constellation" class="form-label"></label>
@@ -56,12 +59,23 @@
     <script>
         (function () {
             var dtInput = document.getElementById('DateTime');
+            var offsetSelect = document.getElementById('UtcOffset');
             if (dtInput && !@Json.Serialize(Model.RenderedImageDataUrl is not null)) {
                 var now = new Date();
                 now.setMilliseconds(0);
                 var pad = function (n) { return n < 10 ? '0' + n : n; };
                 dtInput.value = now.getFullYear() + '-' + pad(now.getMonth() + 1) + '-' + pad(now.getDate())
                     + 'T' + pad(now.getHours()) + ':' + pad(now.getMinutes()) + ':' + pad(now.getSeconds());
+
+                var totalMinutes = -now.getTimezoneOffset();
+                var sign = totalMinutes >= 0 ? '+' : '-';
+                totalMinutes = Math.abs(totalMinutes);
+                var hours = Math.floor(totalMinutes / 60);
+                var minutes = totalMinutes % 60;
+                var offsetValue = sign + pad(hours) + ':' + pad(minutes);
+                if (offsetSelect) {
+                    offsetSelect.value = offsetValue;
+                }
             }
         })();
 
