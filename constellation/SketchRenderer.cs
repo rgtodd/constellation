@@ -6,6 +6,9 @@ namespace ConstellationSketch;
 
 public static class SketchRenderer
 {
+    private const string DEFAULT_FONT = Fonts.CourierNew;
+    private const int DEFAULT_FONT_SIZE = 11;
+
     public static byte[] Render(string headerMarkdown, string constellationName, double altDegrees, double azDegrees, byte[] pngImageBytes)
     {
         var headerText = headerMarkdown
@@ -14,6 +17,10 @@ public static class SketchRenderer
             .Replace("#ALT#", altDegrees.ToString("F0"))
             .Replace("#AZ#", azDegrees.ToString("F0"))
             .Trim();
+
+        var footerText = "© 2026 Richard Todd - Constellation Sketch";
+
+        var footerUrl = "https://constellation-sketch.azurewebsites.net";
 
         QuestPDF.Settings.License = LicenseType.Community;
 
@@ -27,9 +34,13 @@ public static class SketchRenderer
 
                 page.Content().Column(column =>
                 {
-                    column.Item().Text(headerText).FontFamily(Fonts.CourierNew).FontSize(11);
+                    column.Item().Text(headerText).FontFamily(DEFAULT_FONT).FontSize(DEFAULT_FONT_SIZE);
 
                     column.Item().PaddingTop(20).AlignCenter().Image(pngImageBytes);
+
+                    column.Item().PaddingTop(20).Text(text => text.Span(footerText).FontFamily(DEFAULT_FONT).FontSize(DEFAULT_FONT_SIZE));
+
+                    column.Item().Text(text => text.Hyperlink(footerUrl, footerUrl).FontFamily(DEFAULT_FONT).FontSize(DEFAULT_FONT_SIZE));
                 });
             });
         });
