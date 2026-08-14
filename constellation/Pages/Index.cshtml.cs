@@ -129,7 +129,10 @@ namespace ConstellationSketch.Pages
             var headerMarkdown = System.IO.File.ReadAllText(headerPath);
             var constellationName = ConstellationNames[Constellation];
 
-            var pdfBytes = SketchRenderer.Render(headerMarkdown, constellationName, result.CenterAltDegrees, result.CenterAzDegrees, result.PngBytes);
+            var offset = TimeSpan.Parse(UtcOffset.Replace("+", ""));
+            var observationTime = new DateTimeOffset(DateTime, offset);
+
+            var pdfBytes = SketchRenderer.Render(headerMarkdown, constellationName, result.CenterAltDegrees, result.CenterAzDegrees, observationTime, result.PngBytes);
             var fileName = $"{Constellation.ToUpper()}_SKETCH.pdf";
 
             return File(pdfBytes, "application/pdf", fileName);
