@@ -66,6 +66,9 @@ namespace ConstellationSketch.Pages
         public double Longitude { get; set; } = -74.0060;
 
         [BindProperty]
+        public double Elevation { get; set; } = 0;
+
+        [BindProperty]
         [DataType(DataType.DateTime)]
         public DateTime DateTime { get; set; } = new DateTime(DateTime.UtcNow.Ticks / TimeSpan.TicksPerSecond * TimeSpan.TicksPerSecond);
 
@@ -141,7 +144,7 @@ namespace ConstellationSketch.Pages
             var points = ConstellationRenderer.ParseBoundaryData(text);
 
             var dateTimeUtc = DateTime.ToUniversalTime();
-            return ConstellationRenderer.Render(points, Latitude, Longitude, dateTimeUtc);
+            return ConstellationRenderer.Render(points, Latitude, Longitude, dateTimeUtc, Elevation);
         }
 
         private void PopulateConstellations()

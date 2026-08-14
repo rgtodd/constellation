@@ -9,6 +9,7 @@ public record RenderResult(byte[] PngBytes, double CenterAltDegrees, double Cent
 public static class ConstellationRenderer
 {
     private const double DEGREES_TO_RADIANS = Math.PI / 180.0;
+    private const double EARTH_RADIUS_METERS = 6_371_000.0;
 
     /// <summary>
     /// Parses constellation boundary data from a pipe-delimited text format.
@@ -74,6 +75,7 @@ public static class ConstellationRenderer
         double latitudeDegrees,
         double longitudeDegrees,
         DateTime dateTimeUtc,
+        double elevationMeters = 0,
         int canvasSize = 600,
         int boundarySize = 550,
         int gridDivisions = 8)
@@ -82,6 +84,9 @@ public static class ConstellationRenderer
         var gmstAngle = Gmst(jd);
         var lst = gmstAngle + longitudeDegrees * DEGREES_TO_RADIANS;
         var latRad = latitudeDegrees * DEGREES_TO_RADIANS;
+        var horizonDip = elevationMeters > 0
+            ? -Math.Acos(EARTH_RADIUS_METERS / (EARTH_RADIUS_METERS + elevationMeters))
+            : 0.0;
 
         var center = ComputeCenter(boundaryPoints, latRad, lst);
 
@@ -197,11 +202,10 @@ public static class ConstellationRenderer
             }
         }
 
-        // Horizon line: alt=0 is a great circle that projects to a straight line.
         var horizonAzA = center.Az + Math.PI / 4.0;
         var horizonAzB = center.Az - Math.PI / 4.0;
-        var (hProjAx, hProjAy) = GnomonicProject(0, horizonAzA, center.Alt, center.Az);
-        var (hProjBx, hProjBy) = GnomonicProject(0, horizonAzB, center.Alt, center.Az);
+        var (hProjAx, hProjAy) = GnomonicProject(horizonDip, horizonAzA, center.Alt, center.Az);
+        var (hProjBx, hProjBy) = GnomonicProject(horizonDip, horizonAzB, center.Alt, center.Az);
 
         double hScrAx = canvasSize / 2.0 + (hProjAx - midX) * scale;
         double hScrAy = canvasSize / 2.0 + (hProjAy - midY) * scale;
@@ -249,15 +253,30 @@ public static class ConstellationRenderer
                     IsAntialias = true
                 };
 
+                // Offset labels above the horizon line (toward the sky).
+                // The "above" direction is the perpendicular to the horizon line
+                // pointing toward the projection center (which is above the horizon).
+                var perpX = -hDirY / hLineLen;
+                var perpY = hDirX / hLineLen;
+                var centerScreenX = canvasSize / 2.0 + (0 - midX) * scale;
+                var centerScreenY = canvasSize / 2.0 + (0 - midY) * scale;
+                var hMidX = (hcx0 + hcx1) / 2.0;
+                var hMidY = (hcy0 + hcy1) / 2.0;
+                var toCenter = (centerScreenX - hMidX) * perpX + (centerScreenY - hMidY) * perpY;
+                if (toCenter < 0) { perpX = -perpX; perpY = -perpY; }
+                var labelOffset = (double)(horizonFont.Size + 4f);
+                var oX = (float)(perpX * labelOffset);
+                var oY = (float)(perpY * labelOffset);
+
                 var dist = Math.Sqrt((hcx1 - hcx0) * (hcx1 - hcx0) + (hcy1 - hcy0) * (hcy1 - hcy0));
                 if (dist >= 40)
                 {
-                    DrawHorizonLabel(canvas, compass0, (float)hcx0, (float)hcy0, canvasSize, horizonFont, horizonTextPaint);
-                    DrawHorizonLabel(canvas, compass1, (float)hcx1, (float)hcy1, canvasSize, horizonFont, horizonTextPaint);
+                    DrawHorizonLabel(canvas, compass0, (float)hcx0 + oX, (float)hcy0 + oY, canvasSize, horizonFont, horizonTextPaint);
+                    DrawHorizonLabel(canvas, compass1, (float)hcx1 + oX, (float)hcy1 + oY, canvasSize, horizonFont, horizonTextPaint);
                 }
                 else
                 {
-                    DrawHorizonLabel(canvas, compass0, (float)((hcx0 + hcx1) / 2), (float)((hcy0 + hcy1) / 2), canvasSize, horizonFont, horizonTextPaint);
+                    DrawHorizonLabel(canvas, compass0, (float)((hcx0 + hcx1) / 2) + oX, (float)((hcy0 + hcy1) / 2) + oY, canvasSize, horizonFont, horizonTextPaint);
                 }
             }
         }
