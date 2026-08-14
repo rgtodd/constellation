@@ -197,6 +197,71 @@ public static class ConstellationRenderer
             }
         }
 
+        // Horizon line: alt=0 is a great circle that projects to a straight line.
+        var horizonAzA = center.Az + Math.PI / 4.0;
+        var horizonAzB = center.Az - Math.PI / 4.0;
+        var (hProjAx, hProjAy) = GnomonicProject(0, horizonAzA, center.Alt, center.Az);
+        var (hProjBx, hProjBy) = GnomonicProject(0, horizonAzB, center.Alt, center.Az);
+
+        double hScrAx = canvasSize / 2.0 + (hProjAx - midX) * scale;
+        double hScrAy = canvasSize / 2.0 + (hProjAy - midY) * scale;
+        double hScrBx = canvasSize / 2.0 + (hProjBx - midX) * scale;
+        double hScrBy = canvasSize / 2.0 + (hProjBy - midY) * scale;
+
+        double hDirX = hScrBx - hScrAx;
+        double hDirY = hScrBy - hScrAy;
+        double hExtAx = hScrAx - 50.0 * hDirX;
+        double hExtAy = hScrAy - 50.0 * hDirY;
+        double hExtBx = hScrBx + 50.0 * hDirX;
+        double hExtBy = hScrBy + 50.0 * hDirY;
+
+        if (ClipLineToRect(hExtAx, hExtAy, hExtBx, hExtBy,
+                           0, 0, canvasSize, canvasSize,
+                           out var hcx0, out var hcy0, out var hcx1, out var hcy1))
+        {
+            using var horizonPaint = new SKPaint
+            {
+                Color = SKColor.Parse("#2E7D32"),
+                Style = SKPaintStyle.Stroke,
+                StrokeWidth = 2,
+                IsAntialias = true
+            };
+            canvas.DrawLine((float)hcx0, (float)hcy0, (float)hcx1, (float)hcy1, horizonPaint);
+
+            var hLineLen = Math.Sqrt(hDirX * hDirX + hDirY * hDirY);
+            if (hLineLen > 1e-6)
+            {
+                double AzAt(double sx, double sy)
+                {
+                    var t = ((sx - hScrAx) * hDirX + (sy - hScrAy) * hDirY) / (hLineLen * hLineLen);
+                    var az = horizonAzA + t * (horizonAzB - horizonAzA);
+                    return ((az % (2.0 * Math.PI)) + 2.0 * Math.PI) % (2.0 * Math.PI);
+                }
+
+                var compass0 = AzimuthToCompass(AzAt(hcx0, hcy0));
+                var compass1 = AzimuthToCompass(AzAt(hcx1, hcy1));
+
+                using var horizonFont = new SKFont(SKTypeface.Default, 12);
+                using var horizonTextPaint = new SKPaint
+                {
+                    Color = SKColor.Parse("#2E7D32"),
+                    Style = SKPaintStyle.Fill,
+                    IsAntialias = true
+                };
+
+                var dist = Math.Sqrt((hcx1 - hcx0) * (hcx1 - hcx0) + (hcy1 - hcy0) * (hcy1 - hcy0));
+                if (dist >= 40)
+                {
+                    DrawHorizonLabel(canvas, compass0, (float)hcx0, (float)hcy0, canvasSize, horizonFont, horizonTextPaint);
+                    DrawHorizonLabel(canvas, compass1, (float)hcx1, (float)hcy1, canvasSize, horizonFont, horizonTextPaint);
+                }
+                else
+                {
+                    DrawHorizonLabel(canvas, compass0, (float)((hcx0 + hcx1) / 2), (float)((hcy0 + hcy1) / 2), canvasSize, horizonFont, horizonTextPaint);
+                }
+            }
+        }
+
         using var image = SKImage.FromBitmap(bitmap);
         using var data = image.Encode(SKEncodedImageFormat.Png, 100);
         var altDegrees = center.Alt / DEGREES_TO_RADIANS;
@@ -420,6 +485,93 @@ public static class ConstellationRenderer
     /// Declination does not wrap, so it is averaged directly.
     /// The resulting mean (RA, Dec) is then converted to (Alt, Az) via <see cref="RaDecToAltAz"/>.
     /// </remarks>
+    private static void DrawHorizonLabel(SKCanvas canvas, string text, float x, float y, int canvasSize, SKFont font, SKPaint paint)
+    {
+        var textWidth = font.MeasureText(text, paint);
+        var margin = 4f;
+
+        float tx, ty;
+        if (x <= margin)
+        {
+            tx = margin;
+            ty = Math.Clamp(y + 4f, font.Size + margin, canvasSize - margin);
+        }
+        else if (x >= canvasSize - margin)
+        {
+            tx = canvasSize - margin - textWidth;
+            ty = Math.Clamp(y + 4f, font.Size + margin, canvasSize - margin);
+        }
+        else if (y <= margin)
+        {
+            tx = Math.Clamp(x - textWidth / 2f, margin, canvasSize - margin - textWidth);
+            ty = font.Size + margin;
+        }
+        else
+        {
+            tx = Math.Clamp(x - textWidth / 2f, margin, canvasSize - margin - textWidth);
+            ty = canvasSize - margin;
+        }
+
+        canvas.DrawText(text, tx, ty, SKTextAlign.Left, font, paint);
+    }
+
+    private static string AzimuthToCompass(double azRadians)
+    {
+        string[] points = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
+        var deg = ((azRadians / DEGREES_TO_RADIANS % 360.0) + 360.0) % 360.0;
+        var index = (int)Math.Round(deg / 22.5) % 16;
+        return points[index];
+    }
+
+    private static bool ClipLineToRect(
+        double x0, double y0, double x1, double y1,
+        double xMin, double yMin, double xMax, double yMax,
+        out double cx0, out double cy0, out double cx1, out double cy1)
+    {
+        var dx = x1 - x0;
+        var dy = y1 - y0;
+        double tMin = 0.0, tMax = 1.0;
+
+        double[] p = [-dx, dx, -dy, dy];
+        double[] q = [x0 - xMin, xMax - x0, y0 - yMin, yMax - y0];
+
+        for (int i = 0; i < 4; i++)
+        {
+            if (Math.Abs(p[i]) < 1e-12)
+            {
+                if (q[i] < 0)
+                {
+                    cx0 = cy0 = cx1 = cy1 = 0;
+                    return false;
+                }
+            }
+            else
+            {
+                var t = q[i] / p[i];
+                if (p[i] < 0)
+                {
+                    if (t > tMin) tMin = t;
+                }
+                else
+                {
+                    if (t < tMax) tMax = t;
+                }
+            }
+        }
+
+        if (tMin > tMax)
+        {
+            cx0 = cy0 = cx1 = cy1 = 0;
+            return false;
+        }
+
+        cx0 = x0 + tMin * dx;
+        cy0 = y0 + tMin * dy;
+        cx1 = x0 + tMax * dx;
+        cy1 = y0 + tMax * dy;
+        return true;
+    }
+
     private static (double Alt, double Az) ComputeCenter(IReadOnlyList<BoundaryPoint> points, double lat, double lst)
     {
         double sumRa = 0, sumDec = 0;
