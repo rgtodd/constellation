@@ -22,7 +22,8 @@ public static class SketchRenderer
 
         var footerText = "© 2026 Richard Todd - Constellation Sketch";
 
-        var footerUrl = "https://constellation-sketch.azurewebsites.net";
+        var websiteUrl = "https://constellation-sketch.azurewebsites.net";
+        var githubUrl = "https://github.com/rgtodd/constellation";
 
         QuestPDF.Settings.License = LicenseType.Community;
 
@@ -42,7 +43,9 @@ public static class SketchRenderer
 
                     column.Item().PaddingTop(20).Text(text => text.Span(footerText).FontFamily(DEFAULT_FONT).FontSize(DEFAULT_FONT_SIZE));
 
-                    column.Item().Text(text => text.Hyperlink(footerUrl, footerUrl).FontFamily(DEFAULT_FONT).FontSize(DEFAULT_FONT_SIZE));
+                    column.Item().Text(text => text.Hyperlink(websiteUrl, websiteUrl).FontFamily(DEFAULT_FONT).FontSize(DEFAULT_FONT_SIZE));
+
+                    column.Item().Text(text => text.Hyperlink(githubUrl, githubUrl).FontFamily(DEFAULT_FONT).FontSize(DEFAULT_FONT_SIZE));
                 });
             });
         });
