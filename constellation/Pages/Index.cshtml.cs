@@ -156,9 +156,13 @@ namespace ConstellationSketch.Pages
             var text = System.IO.File.ReadAllText(boundaryPath);
             var points = ConstellationRenderer.ParseBoundaryData(text);
 
+            var starPath = Path.Combine(_environment.WebRootPath, "star_catalog.txt");
+            var starText = System.IO.File.ReadAllText(starPath);
+            var stars = ConstellationRenderer.ParseStarData(starText);
+
             var offset = TimeSpan.Parse(UtcOffset.Replace("+", ""));
             var dateTimeUtc = new DateTimeOffset(DateTime, offset).UtcDateTime;
-            return ConstellationRenderer.Render(points, Latitude, Longitude, dateTimeUtc, Elevation);
+            return ConstellationRenderer.Render(points, stars, Latitude, Longitude, dateTimeUtc, Elevation);
         }
 
         private void PopulateUtcOffsets()

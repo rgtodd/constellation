@@ -4,6 +4,8 @@ namespace ConstellationSketch;
 
 public record BoundaryPoint(double RaRadians, double DecRadians);
 
+public record Star(double RaRadians, double DecRadians, double Magnitude);
+
 public record RenderResult(byte[] PngBytes, double CenterAltDegrees, double CenterAzDegrees);
 
 public static class ConstellationRenderer
@@ -40,6 +42,23 @@ public static class ConstellationRenderer
         return points;
     }
 
+    public static IReadOnlyList<Star> ParseStarData(string text)
+    {
+        var stars = new List<Star>();
+        foreach (var line in text.Split('\n', StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries))
+        {
+            var parts = line.Split('|');
+            if (parts.Length < 3)
+                continue;
+
+            var ra = ParseRa(parts[0]);
+            var dec = ParseDec(parts[1]);
+            var mag = double.Parse(parts[2].Trim());
+            stars.Add(new Star(ra, dec, mag));
+        }
+        return stars;
+    }
+
     /// <summary>
     /// Renders a constellation boundary polygon onto a square PNG image using stereographic projection.
     /// </summary>
@@ -72,6 +91,7 @@ public static class ConstellationRenderer
     /// </remarks>
     public static RenderResult Render(
         IReadOnlyList<BoundaryPoint> boundaryPoints,
+        IReadOnlyList<Star> stars,
         double latitudeDegrees,
         double longitudeDegrees,
         DateTime dateTimeUtc,
@@ -173,6 +193,26 @@ public static class ConstellationRenderer
             IsAntialias = true
         };
         canvas.DrawPath(path, strokePaint);
+
+        using var starPaint = new SKPaint
+        {
+            Color = SKColor.Parse("#333333"),
+            Style = SKPaintStyle.Fill,
+            IsAntialias = true
+        };
+        canvas.Save();
+        canvas.ClipPath(path);
+        foreach (var star in stars)
+        {
+            var (starAlt, starAz) = RaDecToAltAz(star.RaRadians, star.DecRadians, latRad, lst);
+            var (sx, sy) = GnomonicProject(starAlt, starAz, center.Alt, center.Az);
+            var screenX = (float)(canvasSize / 2.0 + (sx - midX) * scale);
+            var screenY = (float)(canvasSize / 2.0 + (sy - midY) * scale);
+            var radius = (float)(4.0 - 0.5 * star.Magnitude);
+            if (radius < 0.5f) radius = 0.5f;
+            canvas.DrawCircle(screenX, screenY, radius, starPaint);
+        }
+        canvas.Restore();
 
         if (gridDivisions > 0)
         {
