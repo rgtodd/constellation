@@ -26,6 +26,8 @@ public static class SketchRenderer
         var websiteUrl = "https://constellation-sketch.azurewebsites.net";
         var githubUrl = "https://github.com/rgtodd/constellation";
 
+        QuestPDF.Settings.License = LicenseType.Community;
+
         var document = Document.Create(container =>
         {
             container.Page(page =>

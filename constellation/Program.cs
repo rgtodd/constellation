@@ -1,36 +1,23 @@
-using Microsoft.AspNetCore.ResponseCompression;
-using QuestPDF.Infrastructure;
-
 namespace ConstellationSketch
 {
     public class Program
     {
         public static void Main(string[] args)
         {
-            QuestPDF.Settings.License = LicenseType.Community;
-
             var builder = WebApplication.CreateBuilder(args);
 
+            // Add services to the container.
             builder.Services.AddRazorPages();
-            builder.Services.AddSingleton<ConstellationDataService>();
-            builder.Services.AddResponseCompression(options =>
-            {
-                options.EnableForHttps = true;
-                options.MimeTypes = ResponseCompressionDefaults.MimeTypes.Concat(["image/png", "application/pdf"]);
-            });
 
             var app = builder.Build();
 
-            // Force eager initialization of the data service so the first request doesn't pay the cost.
-            app.Services.GetRequiredService<ConstellationDataService>();
-
+            // Configure the HTTP request pipeline.
             if (!app.Environment.IsDevelopment())
             {
                 app.UseExceptionHandler("/Error");
+                // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
                 app.UseHsts();
             }
-
-            app.UseResponseCompression();
 
             app.UseHttpsRedirection();
 

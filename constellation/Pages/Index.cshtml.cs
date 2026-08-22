@@ -51,12 +51,10 @@ namespace ConstellationSketch.Pages
         };
 
         private readonly IWebHostEnvironment _environment;
-        private readonly ConstellationDataService _dataService;
 
-        public IndexModel(IWebHostEnvironment environment, ConstellationDataService dataService)
+        public IndexModel(IWebHostEnvironment environment)
         {
             _environment = environment;
-            _dataService = dataService;
         }
 
         public List<SelectListItem> Constellations { get; set; } = [];
@@ -156,14 +154,29 @@ namespace ConstellationSketch.Pages
                 return null;
             }
 
-            var points = _dataService.GetBoundary(Constellation);
-            if (points is null)
+            var boundaryPath = Path.Combine(_environment.WebRootPath, "boundaries", $"{Constellation}.txt");
+            if (!System.IO.File.Exists(boundaryPath))
             {
                 ModelState.AddModelError(nameof(Constellation), "Boundary data not found.");
                 return null;
             }
 
-            var stars = _dataService.GetStars(IncludeStars);
+            var text = System.IO.File.ReadAllText(boundaryPath);
+            var points = ConstellationRenderer.ParseBoundaryData(text);
+
+            IReadOnlyList<Star> stars;
+            if (IncludeStars >= 1 && IncludeStars <= 6)
+            {
+                var starPath = Path.Combine(_environment.WebRootPath, "star_catalog.txt");
+                var starText = System.IO.File.ReadAllText(starPath);
+                stars = ConstellationRenderer.ParseStarData(starText)
+                    .Where(s => s.Magnitude <= IncludeStars)
+                    .ToList();
+            }
+            else
+            {
+                stars = [];
+            }
 
             var offset = TimeSpan.Parse(UtcOffset.Replace("+", ""));
             var dateTimeUtc = new DateTimeOffset(DateTime, offset).UtcDateTime;
