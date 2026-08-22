@@ -34,6 +34,10 @@
                 <label asp-for="Constellation" class="form-label"></label>
                 <select asp-for="Constellation" asp-items="Model.Constellations" class="form-select"></select>
             </div>
+            <div class="mb-3">
+                <label asp-for="IncludeStars" class="form-label"></label>
+                <select asp-for="IncludeStars" asp-items="Model.IncludeStarsOptions" class="form-select"></select>
+            </div>
             <button type="submit" class="btn btn-primary">Render</button>
         </div>
         <div class="col-md-8">
