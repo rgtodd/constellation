@@ -83,9 +83,7 @@ namespace ConstellationSketch.Pages
 
         [BindProperty]
         [Display(Name = "Include Stars")]
-        public string IncludeStars { get; set; } = "None";
-
-        public List<SelectListItem> IncludeStarsOptions { get; set; } = [];
+        public int IncludeStars { get; set; } = 0;
 
         public string? RenderedImageDataUrl { get; set; }
 
@@ -93,14 +91,14 @@ namespace ConstellationSketch.Pages
         {
             PopulateConstellations();
             PopulateUtcOffsets();
-            PopulateIncludeStarsOptions();
+
         }
 
         public IActionResult OnPost()
         {
             PopulateConstellations();
             PopulateUtcOffsets();
-            PopulateIncludeStarsOptions();
+
 
             var result = RenderConstellationImage();
             if (result is null)
@@ -114,7 +112,7 @@ namespace ConstellationSketch.Pages
         {
             PopulateConstellations();
             PopulateUtcOffsets();
-            PopulateIncludeStarsOptions();
+
 
             var result = RenderConstellationImage();
             if (result is null)
@@ -129,7 +127,7 @@ namespace ConstellationSketch.Pages
         {
             PopulateConstellations();
             PopulateUtcOffsets();
-            PopulateIncludeStarsOptions();
+
 
             var result = RenderConstellationImage();
             if (result is null)
@@ -142,7 +140,7 @@ namespace ConstellationSketch.Pages
             var offset = TimeSpan.Parse(UtcOffset.Replace("+", ""));
             var observationTime = new DateTimeOffset(DateTime, offset);
 
-            var pdfBytes = SketchRenderer.Render(headerMarkdown, constellationName, result.CenterAltDegrees, result.CenterAzDegrees, observationTime, result.PngBytes);
+            var pdfBytes = SketchRenderer.Render(headerMarkdown, constellationName, result.CenterAltDegrees, result.CenterAzDegrees, observationTime, IncludeStars, result.PngBytes);
             var fileName = $"{Constellation.ToUpper()}_SKETCH.pdf";
 
             return File(pdfBytes, "application/pdf", fileName);
@@ -167,12 +165,12 @@ namespace ConstellationSketch.Pages
             var points = ConstellationRenderer.ParseBoundaryData(text);
 
             IReadOnlyList<Star> stars;
-            if (IncludeStars != "None" && int.TryParse(IncludeStars, out var maxMag))
+            if (IncludeStars >= 1 && IncludeStars <= 6)
             {
                 var starPath = Path.Combine(_environment.WebRootPath, "star_catalog.txt");
                 var starText = System.IO.File.ReadAllText(starPath);
                 stars = ConstellationRenderer.ParseStarData(starText)
-                    .Where(s => s.Magnitude <= maxMag)
+                    .Where(s => s.Magnitude <= IncludeStars)
                     .ToList();
             }
             else
@@ -202,20 +200,6 @@ namespace ConstellationSketch.Pages
             UtcOffsets = offsets
                 .Select(o => new SelectListItem($"UTC{o}", o))
                 .ToList();
-        }
-
-        private void PopulateIncludeStarsOptions()
-        {
-            IncludeStarsOptions =
-            [
-                new SelectListItem("None", "None"),
-                new SelectListItem("Magnitude 1", "1"),
-                new SelectListItem("Magnitude 2", "2"),
-                new SelectListItem("Magnitude 3", "3"),
-                new SelectListItem("Magnitude 4", "4"),
-                new SelectListItem("Magnitude 5", "5"),
-                new SelectListItem("Magnitude 6", "6"),
-            ];
         }
 
         private void PopulateConstellations()

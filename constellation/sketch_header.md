@@ -3,7 +3,7 @@ Constellation Hunter Observing Program – Northern Sky
 
 Constellation: #CONSTELLATION_NAME#     Alt/Az: #ALT#°/#AZ#°
 
-Date: #DATE#     Transparency: ______     
+Date: #DATE#     Transparency: ______     Stars: #STARS#
 
 Time: #TIME#     Seeing: ______           
 

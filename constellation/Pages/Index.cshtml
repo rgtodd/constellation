@@ -35,8 +35,8 @@
                 <select asp-for="Constellation" asp-items="Model.Constellations" class="form-select"></select>
             </div>
             <div class="mb-3">
-                <label asp-for="IncludeStars" class="form-label"></label>
-                <select asp-for="IncludeStars" asp-items="Model.IncludeStarsOptions" class="form-select"></select>
+                <label asp-for="IncludeStars" class="form-label">Include Stars: <span id="includeStarsLabel">@(Model.IncludeStars == 0 ? "None" : $"Magnitude {Model.IncludeStars}")</span></label>
+                <input asp-for="IncludeStars" type="range" class="form-range" min="0" max="6" step="1" id="IncludeStars" />
             </div>
             <button type="submit" class="btn btn-primary">Render</button>
         </div>
@@ -80,6 +80,22 @@
                 if (offsetSelect) {
                     offsetSelect.value = offsetValue;
                 }
+            }
+        })();
+
+        (function () {
+            var slider = document.getElementById('IncludeStars');
+            var label = document.getElementById('includeStarsLabel');
+            if (slider) {
+                slider.addEventListener('input', function () {
+                    var val = parseInt(slider.value);
+                    label.textContent = val === 0 ? 'None' : 'Magnitude ' + val;
+                });
+                slider.addEventListener('change', function () {
+                    if (@Json.Serialize(Model.RenderedImageDataUrl is not null)) {
+                        slider.closest('form').requestSubmit();
+                    }
+                });
             }
         })();
 

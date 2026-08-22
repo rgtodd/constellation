@@ -9,7 +9,7 @@ public static class SketchRenderer
     private const string DEFAULT_FONT = Fonts.CourierNew;
     private const int DEFAULT_FONT_SIZE = 11;
 
-    public static byte[] Render(string headerMarkdown, string constellationName, double altDegrees, double azDegrees, DateTimeOffset observationTime, byte[] pngImageBytes)
+    public static byte[] Render(string headerMarkdown, string constellationName, double altDegrees, double azDegrees, DateTimeOffset observationTime, int includeStars, byte[] pngImageBytes)
     {
         var headerText = headerMarkdown
             .Replace("```", "")
@@ -18,6 +18,7 @@ public static class SketchRenderer
             .Replace("#AZ#", azDegrees.ToString("F0"))
             .Replace("#DATE#", observationTime.ToString("yyyy-MM-dd").PadRight(10))
             .Replace("#TIME#", observationTime.ToString("h:mm tt").PadRight(10))
+            .Replace("#STARS#", includeStars >= 1 ? $"Mag {includeStars}" : "None")
             .Trim();
 
         var footerText = "© 2026 Richard Todd - Constellation Sketch";
